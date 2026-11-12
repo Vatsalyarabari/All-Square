@@ -1,0 +1,122 @@
+[
+  {
+    "id": "costco-2026-10-17",
+    "store": "Costco Burnaby",
+    "date": "2026-10-17",
+    "taxMarking": "per-item",
+    "items": [
+      { "id": "rice", "name": "1121 BASMATI", "cents": 1999, "taxes": [] },
+      { "id": "potatoes", "name": "POTATOES", "cents": 899, "taxes": [] },
+      { "id": "oil1", "name": "PEANUT OIL", "cents": 1749, "taxes": [] },
+      { "id": "oil2", "name": "PEANUT OIL", "cents": 1749, "taxes": [] },
+      { "id": "cetaphil", "name": "CETAPHIL", "cents": 1999, "taxes": ["TAX"] },
+      { "id": "walnuts", "name": "KS WALNUTS", "cents": 1349, "taxes": [] },
+      { "id": "bread", "name": "PROTEIN BREA", "cents": 899, "taxes": [] },
+      { "id": "lole", "name": "LOLE FZIP", "cents": 2999, "taxes": ["TAX"] },
+      { "id": "promo", "name": "/MULTIPLE", "cents": -700, "taxes": ["TAX"], "discountOf": "lole", "discountAssumed": true }
+    ],
+    "subtotalCents": 12942,
+    "taxLines": [{ "code": "TAX", "rate": 0.12, "cents": 516 }],
+    "totalCents": 13458
+  },
+  {
+    "id": "great-two-2026-10-24",
+    "store": "Great Two Supermarket",
+    "date": "2026-10-24",
+    "taxMarking": "per-item",
+    "items": [
+      { "id": "digestive", "name": "DiegstBiscui", "altName": "Royalty英國消化餅", "cents": 439, "taxes": [] },
+      { "id": "lemon", "name": "Garden:Lemon Sandwich Biscuit", "altName": "嘉頓檸檬夾心餅", "cents": 479, "taxes": [] }
+    ],
+    "taxLines": [],
+    "totalCents": 918
+  },
+  {
+    "id": "acharya-2026-11-02",
+    "store": "Acharya Daiko Store",
+    "date": "2026-11-02",
+    "taxMarking": "per-item",
+    "items": [
+      { "id": "biryani", "name": "MDH BOMBAY BIRYANI 100 GM", "cents": 299, "taxes": [] },
+      { "id": "dahi", "name": "NANAK DAHI 750 GM", "cents": 399, "taxes": [] }
+    ],
+    "taxLines": [],
+    "totalCents": 698
+  },
+  {
+    "id": "dollarama-2026-10-19",
+    "store": "Dollarama Fraser St",
+    "date": "2026-10-19",
+    "taxMarking": "per-item",
+    "items": [
+      { "id": "cloth1", "name": "DISH CLOTHS", "cents": 250, "taxes": ["GST", "PST"] },
+      { "id": "cloth2", "name": "DISH CLOTHS", "cents": 250, "taxes": ["GST", "PST"] },
+      { "id": "lays", "name": "LAY'S CHIPS", "cents": 250, "taxes": ["GST"] },
+      { "id": "curtain", "name": "SHOWER CURTAIN", "cents": 325, "taxes": ["GST", "PST"] },
+      { "id": "doritos", "name": "DORITOS", "cents": 300, "taxes": ["GST"] }
+    ],
+    "subtotalCents": 1375,
+    "taxLines": [
+      { "code": "GST", "rate": 0.05, "cents": 69 },
+      { "code": "PST", "rate": 0.07, "cents": 58 }
+    ],
+    "totalCents": 1502
+  },
+  {
+    "id": "acharya-2026-10-24",
+    "store": "Acharya Daiko Store",
+    "date": "2026-10-24",
+    "taxMarking": "none",
+    "items": [
+      { "id": "puri", "name": "3 IN ONE PURI 285 GM", "cents": 349 },
+      { "id": "makhana", "name": "LAXMI PHOOL MAKHANA 200 GM", "cents": 1099 },
+      { "id": "maggi", "name": "MAGGI MASALA NOODLES 280 GM", "cents": 199 },
+      { "id": "chutney", "name": "KURKURE GREEN CHUTNEY 68 GM", "cents": 159 },
+      { "id": "chatka", "name": "KURKURE CHILLI CHATKA 78.9 GM", "cents": 199 },
+      { "id": "milk", "name": "DAIRY LAND MILK 3.25% 4 LTRS", "cents": 699 }
+    ],
+    "subtotalCents": 2704,
+    "taxLines": [{ "code": "GST", "rate": 0.05, "cents": 27 }],
+    "totalCents": 2731
+  },
+  {
+    "id": "great-two-2026-11-02",
+    "store": "Great Two Supermarket",
+    "date": "2026-11-02",
+    "taxMarking": "per-item",
+    "items": [
+      { "id": "cilantro", "name": "Cilantro", "altName": "芫荽 - 扎", "cents": 89, "taxes": [] },
+      { "id": "tomatoes", "name": "Roma Tomatoes", "altName": "羅馬蕃茄", "cents": 720, "taxes": [], "weight": { "lb": 1.9, "centsPerLb": 379 } }
+    ],
+    "taxLines": [],
+    "totalCents": 809
+  },
+  {
+    "id": "masala-boyz-2026-11-07",
+    "store": "Masala Boyz Indian Lounge and Bar",
+    "date": "2026-11-07",
+    "guests": 4,
+    "taxMarking": "per-item",
+    "items": [
+      { "id": "kabab", "name": "DAHI KE KABAB", "cents": 1500, "taxes": ["GST"] },
+      { "id": "manchurian", "name": "VEG. MANCHURIAN (V)", "cents": 1600, "taxes": ["GST"] },
+      { "id": "momos", "name": "\"PANEER\" CHILLI MOMOS", "cents": 1800, "taxes": ["GST"] },
+      { "id": "mangodi", "name": "PANEER MANGODI", "cents": 1900, "taxes": ["GST"] },
+      { "id": "methi", "name": "PANEER METHI (GF)", "cents": 1900, "taxes": ["GST"] },
+      { "id": "cheddar", "name": "CHEDDAR CHEESE NAAN", "cents": 800, "taxes": ["GST"] },
+      { "id": "roti", "name": "ROTI", "cents": 300, "taxes": ["GST"] },
+      { "id": "garlic", "name": "GARLIC NAAN", "cents": 400, "taxes": ["GST"] },
+      { "id": "laccha", "name": "LACCHA PARATHA", "cents": 450, "taxes": ["GST"] },
+      { "id": "cheddar2", "name": "CHEDDAR CHEESE NAAN", "cents": 1600, "qty": 2, "taxes": ["GST"] },
+      { "id": "daal", "name": "DAAL TADKA (GF)", "cents": 1700, "taxes": ["GST"] },
+      { "id": "jeera", "name": "JEERA RICE", "cents": 800, "taxes": ["GST"] }
+    ],
+    "subtotalCents": 14750,
+    "taxLines": [
+      { "code": "GST", "rate": 0.05, "cents": 738 },
+      { "code": "PLT", "rate": 0.1, "cents": 0 },
+      { "code": "PST", "rate": 0.07, "cents": 0 }
+    ],
+    "totalCents": 15488
+  }
+]
