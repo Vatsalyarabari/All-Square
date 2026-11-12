@@ -5,7 +5,7 @@ import { parseAzureReceipt, receiptDate } from "./azureReceipt.ts";
 import type { Receipt } from "./split.ts";
 
 const SCAN_URL = import.meta.env.VITE_SCAN_URL as string | undefined;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
 export const scanAvailable = Boolean(SCAN_URL);
 
@@ -35,7 +35,8 @@ export async function scanPhoto(file: File): Promise<{ receipt: Receipt; date?: 
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(ANON_KEY ? { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` } : {}),
+      // New Supabase keys go in the apikey header only, never as a Bearer token.
+      ...(PUBLISHABLE_KEY ? { apikey: PUBLISHABLE_KEY } : {}),
     },
     body: JSON.stringify({ image: dataUrl.split(",")[1] }),
   });

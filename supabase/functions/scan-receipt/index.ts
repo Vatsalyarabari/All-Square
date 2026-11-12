@@ -5,6 +5,12 @@
 //   AZURE_KEY        KEY 1 from your Azure Document Intelligence resource
 //   AZURE_ENDPOINT   e.g. https://splitfree-receipts-vr.cognitiveservices.azure.com/
 //   ALLOWED_ORIGIN   optional, e.g. https://vatsalyarabari.github.io  (defaults to any origin)
+//
+// Who may call it: only requests carrying the project's publishable key in the `apikey` header
+// (checked by withSupabase). Turn OFF the function's "Verify JWT" setting, because publishable
+// keys aren't JWTs and the platform check would reject them before this code runs.
+
+import { withSupabase } from "npm:@supabase/server@1";
 
 const API_VERSION = "2024-11-30";
 const MAX_BASE64 = 6_000_000; // about 4.5 MB of photo
@@ -20,8 +26,7 @@ const reply = (status: number, body: unknown) =>
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+async function handle(req: Request): Promise<Response> {
   if (req.method !== "POST") return reply(405, { error: "Send a POST with { image }." });
 
   const key = Deno.env.get("AZURE_KEY");
@@ -63,4 +68,18 @@ Deno.serve(async (req) => {
     if (data.status === "failed") return reply(422, { error: "Azure couldn't read that photo. Try a flatter, brighter shot." });
   }
   return reply(504, { error: "Reading took too long. Try again." });
-});
+}
+
+const guarded = withSupabase({ auth: "publishable" }, (req: Request) => handle(req));
+
+export default {
+  // Browsers send a preflight OPTIONS request without the key; answer it before the key check.
+  fetch: async (req: Request) => {
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+    const res = await guarded(req);
+    if (res.status === 401 || res.status === 403) {
+      return reply(401, { error: "The app's Supabase key is missing or wrong. Check VITE_SUPABASE_PUBLISHABLE_KEY." });
+    }
+    return res;
+  },
+};
