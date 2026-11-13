@@ -1,6 +1,12 @@
 // The shapes of everything the app stores. Money is always whole cents.
 
-export type Member = { id: string; name: string };
+export type Member = {
+  id: string;
+  name: string;
+  userId?: string; // set once this person has joined with an account
+  email?: string;
+  phone?: string;
+};
 
 /** How one expense is divided between people. */
 export type Split =
@@ -72,7 +78,21 @@ export type Group = {
   settlements: Settlement[];
   recurring: Recurring[];
   itemMemory?: Record<string, string[]>; // remembered "who takes which item"
+  inviteCode?: string; // shared groups only
+  createdByMe?: boolean;
+  receipts?: OpenReceipt[]; // receipts waiting for everyone to tap their items
   createdAt: number;
+};
+
+/** A scanned receipt shared with the group, where each person taps what they had. */
+export type OpenReceipt = {
+  id: string;
+  receipt: import("./split.ts").Receipt;
+  date: string;
+  payerId: string;
+  tipCents: number;
+  createdBy?: string; // user id of whoever scanned it
+  claims: { unitId: string; memberId: string }[];
 };
 
 export type AppState = { version: 2; groups: Group[] };

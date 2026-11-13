@@ -1,20 +1,77 @@
-// The app shell: three tabs, the floating tab bar and the + button.
+// The app shell: sign-in gate, invite links, three tabs, the floating tab bar and the + button.
 
 import { useEffect, useState } from "react";
-import { actions, useAppState } from "./lib/store.ts";
+import { actions, onStoreError, startCloud, useAppState, useStore } from "./lib/store.ts";
 import { AddExpense } from "./screens/AddExpense.tsx";
+import { JoinSheet, SignIn } from "./screens/Auth.tsx";
 import { NewGroup } from "./screens/shared.tsx";
 import { Activity, Home, People } from "./screens/Tabs.tsx";
 import { haptic, Icon, NavProvider, useNav } from "./ui/kit.tsx";
 
 type Tab = "home" | "activity" | "people";
+type Invite = { code: string; receiptId?: string };
+
+const INVITE_KEY = "allsquare.invite";
+
+/** Reads ?join=CODE(&receipt=ID) once, keeps it through sign-in, and tidies the address bar. */
+function takeInvite(): Invite | null {
+  const q = new URLSearchParams(window.location.search);
+  const code = q.get("join");
+  if (code) {
+    const invite = { code, receiptId: q.get("receipt") ?? undefined };
+    try { sessionStorage.setItem(INVITE_KEY, JSON.stringify(invite)); } catch { /* private mode */ }
+    return invite;
+  }
+  try {
+    const saved = sessionStorage.getItem(INVITE_KEY);
+    return saved ? (JSON.parse(saved) as Invite) : null;
+  } catch {
+    return null;
+  }
+}
+const clearInvite = () => {
+  try { sessionStorage.removeItem(INVITE_KEY); } catch { /* ignore */ }
+  const q = new URLSearchParams(window.location.search);
+  if (q.has("join") || q.has("receipt")) {
+    q.delete("join");
+    q.delete("receipt");
+    const rest = q.toString();
+    window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+  }
+};
 
 export default function App() {
   return (
     <NavProvider>
-      <Shell />
+      <Gate />
     </NavProvider>
   );
+}
+
+function Gate() {
+  const { mode, status, account } = useStore();
+  const nav = useNav();
+  const [invite, setInvite] = useState<Invite | null>(takeInvite);
+
+  useEffect(() => void startCloud(), []);
+  useEffect(() => {
+    const off = onStoreError((m) => nav.toast(m, "x"));
+    return () => void off();
+  }, [nav]);
+
+  // Signed in with an invite waiting: open the join sheet once.
+  useEffect(() => {
+    if (mode === "cloud" && status === "ready" && account && invite) {
+      nav.open(<JoinSheet code={invite.code} receiptId={invite.receiptId} onDone={() => { clearInvite(); setInvite(null); }} />);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, status, account?.userId, invite?.code]);
+
+  if (mode === "cloud" && status === "loading") {
+    return <div className="splash"><span className="wordmark big-mark">Allsquare</span></div>;
+  }
+  if (mode === "cloud" && status === "signed-out") return <SignIn invited={Boolean(invite)} />;
+  return <Shell />;
 }
 
 function Shell() {

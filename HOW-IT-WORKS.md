@@ -4,6 +4,7 @@ This guide grows with each stage.
 - Stage 1 (Nov 9): groups, expenses, who owes whom, settle up.
 - Stage 1.5 (Nov 9): the design from `SplitFree_Design_Spec.md`, plus Splitwise Pro features and extras.
 - Stages 4–5 (Nov 11): renamed to **Allsquare**; receipt splitting with item claiming and remembered items; Splitwise import; the scan server and hosting code for Stages 2–3.
+- Stage 3b (Nov 11): sign-in, shared live groups, invite links, picking your own items on your own phone, emails and texts.
 
 ## 1. The big picture
 
@@ -13,11 +14,12 @@ Allsquare is a **web app**: a website that behaves like an app. On a phone you o
 |---|---|---|
 | Screens | What you see and tap | `src/App.tsx`, `src/screens/*`, `src/ui/*`, `src/index.css` |
 | Rules | The maths and file reading: splitting, balances, rounding, repeats, export, receipts, import | `src/lib/*.ts` |
-| Storage | Where data is saved | `src/lib/store.ts` |
-| Server | Holds the Azure key and reads receipt photos | `supabase/functions/scan-receipt/index.ts` |
+| Storage | Where data is saved (this phone, or your account online) | `src/lib/store.ts`, `src/lib/cloud.ts` |
+| Database rules | Who may see and change what | `supabase/migrations/001_shared_groups.sql` |
+| Server | Reads receipt photos (holds the Azure key); sends emails (holds the Resend key) | `supabase/functions/scan-receipt`, `supabase/functions/notify` |
 | Hosting | Tests, builds and publishes on every change | `.github/workflows/deploy.yml` |
 
-The rules layer knows nothing about screens or storage. That's why it can be tested on its own (34 automatic tests), and why it will work unchanged when storage moves online.
+The rules layer knows nothing about screens or storage. That's why it can be tested on its own (38 automatic tests), and why it will work unchanged when storage moves online.
 
 ## 2. The tools
 
@@ -87,7 +89,7 @@ Choose Monthly or Weekly when adding rent or Wi-Fi. Each time the app opens, a c
 
 ## 11. Paying back and reminders
 
-In **Settle up**: "Copy e-Transfer note" if you owe, "Send a reminder" if you're owed. On a phone this opens the share sheet (WhatsApp, Messages). Then tap **Settle** to record the payment.
+In **Settle up**: "Copy e-Transfer note" if you owe, "Send a reminder" if you're owed. A reminder can go by text (from your phone), by email (sent by the app, once signed in), or any other app. Then tap **Settle** to record the payment.
 
 ## 12. Summary and export (`export.ts`)
 
@@ -158,28 +160,36 @@ The photo is shrunk to about 2200 px first, which is enough for small print and 
 - **Sheets** slide up and can be swiped down to close.
 - **The + menu** fans out Scan receipt, Settle up and Add expense.
 - **Swipe up to confirm** anything that moves money: the page flies off, the screen floods green, a dome rises, and a toast confirms it.
-- **Demo reset**: long-press the Allsquare wordmark for 0.6 s.
+- **Demo**: "Try the demo" on the sign-in or empty Home screen. In the demo, long-press the wordmark to reset it.
 
-## 18. Storage right now, and what changes next
+## 18. Accounts, sharing and live updates (Stage 3b)
 
-Data lives in the browser's storage on one device, so friends can't see your groups yet, and claiming happens on one phone. **Stage 3b** moves storage online (Supabase):
-- friends join by link without signing up,
-- groups update live,
-- each person claims their items on their own phone,
-- photos are stored online,
-- exchange rates fill in automatically.
+**Three modes** (`store.ts`): *cloud* (signed in, data in Supabase), *local* (no server set up, data stays in this browser), *demo* (sample data in memory, never saved). The screens are the same in all three; only where data goes changes. Every change shows on screen instantly, then is saved and re-read from the database so all phones agree.
 
-Only `store.ts` changes; the screens and rules stay the same.
+**Signing in** (`Auth.tsx`): Google, or an email with a link *and* a 6-digit code (the code matters on iPhone, where a link opens Safari instead of the home-screen app). People opening an invite can also **continue as a guest** (a Supabase "anonymous" account). A guest can later add their email under Account to keep their groups.
+
+**Who sees what** (`supabase/migrations/001_shared_groups.sql`): the database itself checks every read and write. You only see groups where one of the members is linked to you. A member row can only be linked to an account through an invite, and you can't move people between groups. This was tested with 26 checks on a real Postgres database.
+
+**Invites**: every group has a secret code. The link is `…/allsquare/?join=CODE`. The friend picks their name from the list (so everything already added for "Rahul" becomes theirs) or adds themselves. **Make a new link** stops old links working.
+
+**Picking your own items** (`ReceiptFlow.tsx`): after checking the receipt, choose **Everyone picks their own**. The receipt is saved as "open" and each person gets a link `…?join=CODE&receipt=ID`. Everyone taps **Me** on what they had; taps appear on every phone within a second. Whoever scanned it sets the payer and tip and swipes up to turn it into a normal expense. Open receipts show on Home under **Pick your items**.
+
+**Emails** (`supabase/functions/notify`): the app asks the server to email someone an invite, a "pick your items" link, or a reminder. The server checks you're in the group, uses only the group's real link (never a link made up by a phone), sends through Resend, and allows one email of each kind per person per day.
+
+**Texts** (`messaging.ts`): free, from your own number. The **Text** button opens your Messages app with the words and link already typed (`sms:` link; iPhones and Android need slightly different formats). **Share another way** opens WhatsApp, Instagram and so on.
+
+**Moving old groups**: groups saved on a phone before accounts existed can be moved into your account once (Home banner → Review).
 
 ## 19. Stages
 
 1. Groups, balances, settle up. **Done.**
 1.5. Design + Pro features. **Done.**
-2. Free hosting on GitHub Pages. **Code done; needs your public `allsquare` repo.**
-3a. Scan server. **Code done and tested; needs your Supabase project.**
-3b. Shared live groups, join by link, claim on your own phone. **Next, once Supabase exists.**
-4. Receipt splitting, claiming, remembered items. **Done (on one phone).**
+2. Free hosting on GitHub Pages. **Done.**
+3a. Scan server. **Done.**
+3b. Accounts, shared live groups, invites, own-phone claiming, emails and texts. **Code done and tested against a stand-in server; needs the setup steps in `setup-online.md`, then a real test together.**
+4. Receipt splitting, claiming, remembered items. **Done.**
 5. Splitwise import. **Done; confirm with a real export.**
+Later: automatic texts (Twilio), photos stored online, automatic exchange rates.
 
 ## 20. Running it on your laptop
 

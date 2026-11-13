@@ -2,10 +2,12 @@
 // The key never reaches the phone. Until the server exists, scanning reports "not set up".
 
 import { parseAzureReceipt, receiptDate } from "./azureReceipt.ts";
+import { accessToken } from "./cloud.ts";
 import type { Receipt } from "./split.ts";
 
-const SCAN_URL = import.meta.env.VITE_SCAN_URL as string | undefined;
-const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL as string | undefined;
+const SCAN_URL = (import.meta.env?.VITE_SCAN_URL as string | undefined) || (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/scan-receipt` : undefined);
+const PUBLISHABLE_KEY = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
 export const scanAvailable = Boolean(SCAN_URL);
 
@@ -31,12 +33,15 @@ export async function scanPhoto(file: File): Promise<{ receipt: Receipt; date?: 
   if (!SCAN_URL) throw new Error("Scanning isn't set up yet.");
   // Big enough for small print, small enough to upload quickly on mobile data.
   const dataUrl = await shrinkImage(file, 2200, 0.85);
+  const token = await accessToken();
   const res = await fetch(SCAN_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       // New Supabase keys go in the apikey header only, never as a Bearer token.
       ...(PUBLISHABLE_KEY ? { apikey: PUBLISHABLE_KEY } : {}),
+      // Signed-in person's session, so only Allsquare users can spend the free scans.
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ image: dataUrl.split(",")[1] }),
   });

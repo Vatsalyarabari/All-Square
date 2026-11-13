@@ -4,10 +4,12 @@ import { useMemo, useRef, useState } from "react";
 import { expenseShares, netBalances, simplifyDebts } from "../lib/balances.ts";
 import { CATEGORY_ICON } from "../lib/categories.ts";
 import { formatCents } from "../lib/money.ts";
-import { actions, useAppState } from "../lib/store.ts";
+import { actions, enterDemo, exitDemo, phoneGroups, useAppState, useStore } from "../lib/store.ts";
 import type { Category, Group } from "../lib/types.ts";
 import { Chips, DivergingBar, haptic, Icon, RoundButton, Sheet, useNav, useSheetClose } from "../ui/kit.tsx";
+import { AccountSheet, MovePhoneGroups } from "./Auth.tsx";
 import { GroupSheet, SummaryTable } from "./GroupSheet.tsx";
+import { ReceiptSession } from "./ReceiptFlow.tsx";
 import { ImportSplitwise } from "./ImportSplitwise.tsx";
 import { ActivityRow, activityOf, nameIn, NewGroup, shortDate } from "./shared.tsx";
 
@@ -17,15 +19,30 @@ export function Home({ groups }: { groups: Group[] }) {
   const [revealed, setRevealed] = useState(false);
   const [page, setPage] = useState(0);
   const pressTimer = useRef<number>(0);
-  const me = groups[0] ? nameIn(groups[0], groups[0].meId) : "You";
+  const { mode, account } = useStore();
+  const me = account?.name ?? (account?.email ? account.email : groups[0] ? nameIn(groups[0], groups[0].meId) : "You");
+  const [onPhone, setOnPhone] = useState(() => phoneGroups().length);
+  const waiting = groups.flatMap((g) => (g.receipts ?? []).map((r) => ({ g, r, mine: r.claims.some((c) => c.memberId === g.meId) })));
 
-  const startPress = () => (pressTimer.current = window.setTimeout(() => { haptic(30); actions.resetDemo(); nav.toast("Demo data reset"); }, 600));
+  const startPress = () => mode === "demo" && (pressTimer.current = window.setTimeout(() => { haptic(30); actions.resetDemo(); nav.toast("Demo data reset"); }, 600));
   const endPress = () => clearTimeout(pressTimer.current);
 
   return (
     <div className="tab-page">
+      {mode === "demo" && (
+        <div className="demo-banner">
+          <span>Demo data. Nothing is saved.</span>
+          <button type="button" onClick={() => exitDemo()}>Leave demo</button>
+        </div>
+      )}
+      {onPhone > 0 && (
+        <div className="demo-banner">
+          <span>{onPhone} group{onPhone > 1 ? "s" : ""} saved on this phone only</span>
+          <button type="button" onClick={() => nav.open(<MovePhoneGroups onDone={() => setOnPhone(0)} />)}>Review</button>
+        </div>
+      )}
       <header className="home-head">
-        <span className="avatar" aria-label={`Signed in as ${me}`}>{me.slice(0, 1)}</span>
+        <button type="button" className="avatar" aria-label="Account" onClick={() => nav.open(<AccountSheet />)}>{account?.isGuest ? "G" : me.slice(0, 1).toUpperCase()}</button>
         <span className="wordmark" onPointerDown={startPress} onPointerUp={endPress} onPointerLeave={endPress}>Allsquare</span>
         <RoundButton icon="bell" label="Coming up" onClick={() => nav.open(<ComingUp />)} />
       </header>
@@ -36,6 +53,7 @@ export function Home({ groups }: { groups: Group[] }) {
           <p className="muted">Start a group for roommates, a trip or a dinner.</p>
           <button type="button" className="primary" onClick={() => nav.open(<NewGroup />)}>New group</button>
           <button type="button" className="secondary" onClick={() => nav.open(<ImportSplitwise />)}>Import from Splitwise</button>
+          <button type="button" className="link center" onClick={() => { haptic(); enterDemo(); }}>Try the demo with sample data</button>
         </div>
       ) : (
         <>
@@ -43,6 +61,26 @@ export function Home({ groups }: { groups: Group[] }) {
             {groups.map((g) => <BalanceCard key={g.id} group={g} revealed={revealed} onEye={() => (haptic(), setRevealed(!revealed))} />)}
           </div>
           <div className="dashes" aria-hidden>{groups.map((g, i) => <span key={g.id} className={i === page ? "on" : ""} />)}</div>
+        </>
+      )}
+
+      {waiting.length > 0 && (
+        <>
+          <h3 className="section-title">Pick your items ›</h3>
+          <ul className="group-list">
+            {waiting.map(({ g, r, mine }) => (
+              <li key={r.id}>
+                <button type="button" className="group-row waiting" onClick={() => nav.open(<ReceiptSession groupId={g.id} receiptId={r.id} />)}>
+                  <span className="dots" aria-hidden><span><Icon name="scan" size={16} /></span></span>
+                  <span className="grow">
+                    <span className="arow-title">{r.receipt.store}</span>
+                    <span className="arow-sub">{g.name} · {mine ? "you've picked, tap to change" : "waiting for you"}</span>
+                  </span>
+                  <span className="arow-amt muted">{formatCents(r.receipt.totalCents + r.tipCents, g.currency)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </>
       )}
 

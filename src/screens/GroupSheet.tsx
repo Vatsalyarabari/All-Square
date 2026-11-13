@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { netBalances, simplifyDebts, summary } from "../lib/balances.ts";
-import { groupToCsv, payMessage, reminderMessage } from "../lib/export.ts";
+import { groupToCsv, payMessage } from "../lib/export.ts";
+import { cleanPhone, looksLikeEmail, looksLikePhone } from "../lib/messaging.ts";
 import { formatCents, parsePercent } from "../lib/money.ts";
-import { actions, useAppState } from "../lib/store.ts";
+import { actions, useAppState, useStore } from "../lib/store.ts";
 import type { Group, Split } from "../lib/types.ts";
 import { Chips, ConfirmButton, DivergingBar, haptic, Icon, Sheet, shareText, useNav, useSheetClose } from "../ui/kit.tsx";
 import { AddExpense } from "./AddExpense.tsx";
 import { ActivityRow, activityOf, nameIn } from "./shared.tsx";
-import { ReceiptFlow } from "./ReceiptFlow.tsx";
+import { ReceiptFlow, ReceiptSession } from "./ReceiptFlow.tsx";
+import { InviteSheet, SendSheet } from "./Send.tsx";
 import { Settle } from "./Settle.tsx";
 
 export function GroupSheet({ groupId }: { groupId: string }) {
@@ -28,9 +30,10 @@ function GroupBody({ groupId }: { groupId: string }) {
   const { groups } = useAppState();
   const nav = useNav();
   const close = useSheetClose();
+  const { mode } = useStore();
   const [fan, setFan] = useState(false);
   const g = groups.find((x) => x.id === groupId);
-  if (!g) return <p className="pad muted">This group was deleted.</p>;
+  if (!g) return <p className="pad muted">This group isn't here any more.</p>;
 
   const net = netBalances(g);
   const transfers = simplifyDebts(net);
@@ -43,7 +46,10 @@ function GroupBody({ groupId }: { groupId: string }) {
     <div className="sheet-body group-body">
       <div className="sheet-top">
         <button type="button" className="round surface2" aria-label="Close" onClick={close}><Icon name="x" size={20} /></button>
-        <button type="button" className="round surface2" aria-label="Group settings" onClick={() => nav.open(<GroupSettings groupId={g.id} />)}><Icon name="gear" size={20} /></button>
+        <span className="top-actions">
+          {mode === "cloud" && <button type="button" className="round surface2" aria-label="Invite people" onClick={() => nav.open(<InviteSheet groupId={g.id} />)}><Icon name="people" size={20} /></button>}
+          <button type="button" className="round surface2" aria-label="Group settings" onClick={() => nav.open(<GroupSettings groupId={g.id} />)}><Icon name="gear" size={20} /></button>
+        </span>
       </div>
       <span className="kicker">{g.members.length} members</span>
       <h2 className="title">{g.name}</h2>
@@ -57,6 +63,24 @@ function GroupBody({ groupId }: { groupId: string }) {
         ))}
       </div>
 
+      {(g.receipts?.length ?? 0) > 0 && (
+        <>
+          <h3 className="section-title">Picking items ›</h3>
+          <ul className="settle-list">
+            {g.receipts!.map((r) => {
+              const picked = new Set(r.claims.map((c) => c.memberId)).size;
+              return (
+                <li key={r.id}>
+                  <span className="grow"><b>{r.receipt.store}</b><span className="tiny-link muted">{picked} of {g.members.length} have picked</span></span>
+                  <span className="amt">{formatCents(r.receipt.totalCents + r.tipCents, g.currency)}</span>
+                  <button type="button" className="settle-pill" onClick={() => nav.open(<ReceiptSession groupId={g.id} receiptId={r.id} />)}>Open</button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+
       <h3 className="section-title">Settle up ›</h3>
       {transfers.length === 0 ? <p className="muted pad-s">Everyone is square.</p> : (
         <ul className="settle-list">
@@ -68,7 +92,7 @@ function GroupBody({ groupId }: { groupId: string }) {
                   <button type="button" className="tiny-link" onClick={() => shareText(payMessage(g, nameIn(g, t.to), t.cents), nav, "e-Transfer note copied")}>Copy e-Transfer note</button>
                 )}
                 {t.to === g.meId && (
-                  <button type="button" className="tiny-link" onClick={() => shareText(reminderMessage(g, nameIn(g, t.from), t.cents, nameIn(g, g.meId)), nav, "Reminder copied")}>Send a reminder</button>
+                  <button type="button" className="tiny-link" onClick={() => nav.open(<SendSheet groupId={g.id} memberId={t.from} purpose={{ kind: "reminder", cents: t.cents }} />)}>Send a reminder</button>
                 )}
               </span>
               <span className="amt">{formatCents(t.cents, g.currency)}</span>
@@ -118,8 +142,10 @@ function SettingsBody({ groupId }: { groupId: string }) {
   const { groups } = useAppState();
   const nav = useNav();
   const close = useSheetClose();
+  const { mode } = useStore();
   const g = groups.find((x) => x.id === groupId);
   const [newName, setNewName] = useState("");
+  const [newContact, setNewContact] = useState("");
   const init = g?.defaultSplit;
   const [kind, setKind] = useState<Split["kind"]>(init?.kind === "percent" || init?.kind === "shares" ? init.kind : "equal");
   const [percents, setPercents] = useState<Record<string, string>>(init?.kind === "percent" ? Object.fromEntries(Object.entries(init.percents).map(([k, v]) => [k, String(v / 100)])) : {});
@@ -145,14 +171,38 @@ function SettingsBody({ groupId }: { groupId: string }) {
       </div>
       <h2 className="title">Group settings</h2>
 
-      <h3 className="section-title">Which one is you?</h3>
-      <Chips options={g.members.map((m) => ({ id: m.id, label: m.name }))} selected={[g.meId]} onToggle={(id) => actions.setMe(g.id, id)} />
+      {mode !== "cloud" && (
+        <>
+          <h3 className="section-title">Which one is you?</h3>
+          <Chips options={g.members.map((m) => ({ id: m.id, label: m.name }))} selected={[g.meId]} onToggle={(id) => actions.setMe(g.id, id)} />
+        </>
+      )}
+
+      <h3 className="section-title">People</h3>
+      <ul className="plain">
+        {g.members.map((m) => (
+          <li key={m.id}>
+            <button type="button" className="member-row" onClick={() => nav.open(<MemberSheet groupId={g.id} memberId={m.id} />)}>
+              <b>{m.name}{m.id === g.meId ? " (you)" : ""}</b>
+              <small className="muted">{[m.email, m.phone].filter(Boolean).join(" · ") || "Add email or phone"}</small>
+            </button>
+            {mode === "cloud" && (m.userId ? <span className="kicker">joined</span>
+              : <button type="button" className="settle-pill" onClick={() => nav.open(<SendSheet groupId={g.id} memberId={m.id} purpose={{ kind: "invite" }} />)}>Invite</button>)}
+          </li>
+        ))}
+      </ul>
+      {mode === "cloud" && <button type="button" className="secondary" onClick={() => nav.open(<InviteSheet groupId={g.id} />)}>Share the invite link</button>}
 
       <h3 className="section-title">Add a person</h3>
-      <div className="per-person">
-        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name" aria-label="New person's name" />
-        <button type="button" className="settle-pill" disabled={!newName.trim() || g.members.some((m) => m.name.toLowerCase() === newName.trim().toLowerCase())}
-          onClick={() => { actions.addMember(g.id, newName.trim()); setNewName(""); }}>Add</button>
+      <div className="add-person">
+        <input className="field" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name" aria-label="New person's name" />
+        <input className="field" value={newContact} onChange={(e) => setNewContact(e.target.value)} placeholder="Email or phone (optional)" aria-label="New person's email or phone" />
+        <button type="button" className="settle-pill" disabled={!newName.trim() || g.members.some((m) => m.name.toLowerCase() === newName.trim().toLowerCase()) || (newContact.trim() !== "" && !looksLikeEmail(newContact) && !looksLikePhone(newContact))}
+          onClick={() => {
+            const c = newContact.trim();
+            actions.addMember(g.id, newName.trim(), looksLikeEmail(c) ? c : undefined, !looksLikeEmail(c) && looksLikePhone(c) ? cleanPhone(c) : undefined);
+            setNewName(""); setNewContact("");
+          }}>Add</button>
       </div>
 
       <h3 className="section-title">Default split for new expenses</h3>
@@ -199,8 +249,46 @@ function SettingsBody({ groupId }: { groupId: string }) {
         </>
       )}
 
-      <ConfirmButton className="danger-btn" label="Delete group" confirmLabel="Tap again to delete the whole group"
-        onConfirm={() => { actions.deleteGroup(g.id); nav.closeAll(); nav.toast("Group deleted"); }} />
+      {mode === "cloud" && !g.createdByMe && (
+        <ConfirmButton className="danger-btn" label="Leave group" confirmLabel="Tap again to leave (your expenses stay for the others)"
+          onConfirm={() => { actions.leaveGroup(g.id); nav.closeAll(); nav.toast("You left the group"); }} />
+      )}
+      {(mode !== "cloud" || g.createdByMe) && (
+        <ConfirmButton className="danger-btn" label="Delete group" confirmLabel={mode === "cloud" ? "Tap again to delete it for everyone" : "Tap again to delete the whole group"}
+          onConfirm={() => { actions.deleteGroup(g.id); nav.closeAll(); nav.toast("Group deleted"); }} />
+      )}
+    </div>
+  );
+}
+
+// ---------- One person's name, email and phone ----------
+function MemberSheet({ groupId, memberId }: { groupId: string; memberId: string }) {
+  return <Sheet surface><MemberBody groupId={groupId} memberId={memberId} /></Sheet>;
+}
+
+function MemberBody({ groupId, memberId }: { groupId: string; memberId: string }) {
+  const { groups } = useAppState();
+  const nav = useNav();
+  const close = useSheetClose();
+  const m = groups.find((x) => x.id === groupId)?.members.find((x) => x.id === memberId);
+  const [name, setName] = useState(m?.name ?? "");
+  const [email, setEmail] = useState(m?.email ?? "");
+  const [phone, setPhone] = useState(m?.phone ?? "");
+  if (!m) return null;
+  const okEmail = email.trim() === "" || looksLikeEmail(email);
+  const okPhone = phone.trim() === "" || looksLikePhone(phone);
+  return (
+    <div className="sheet-body">
+      <div className="sheet-top"><button type="button" className="round surface2" aria-label="Close" onClick={close}><Icon name="x" size={20} /></button></div>
+      <h2 className="title">{m.name}</h2>
+      <p className="muted small-text">Used for invites, "pick your items" links and reminders. Only people in this group can see them.</p>
+      <label className="field-label">Name<input className="field" value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label className="field-label">Email<input className="field" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></label>
+      {!okEmail && <p className="warn-text small-text">That email doesn't look right.</p>}
+      <label className="field-label">Phone<input className="field" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="416 555 0199" /></label>
+      {!okPhone && <p className="warn-text small-text">That phone number looks too short.</p>}
+      <button type="button" className="primary" disabled={!name.trim() || !okEmail || !okPhone}
+        onClick={() => { actions.updateMember(groupId, memberId, { name: name.trim(), email: email.trim(), phone: phone.trim() ? cleanPhone(phone) : "" }); nav.toast("Saved"); close(); }}>Save</button>
     </div>
   );
 }

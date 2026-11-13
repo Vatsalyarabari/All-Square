@@ -6,9 +6,9 @@
 //   AZURE_ENDPOINT   e.g. https://splitfree-receipts-vr.cognitiveservices.azure.com/
 //   ALLOWED_ORIGIN   optional, e.g. https://vatsalyarabari.github.io  (defaults to any origin)
 //
-// Who may call it: only requests carrying the project's publishable key in the `apikey` header
-// (checked by withSupabase). Turn OFF the function's "Verify JWT" setting, because publishable
-// keys aren't JWTs and the platform check would reject them before this code runs.
+// Who may call it: only signed-in Allsquare users (their session token, checked by withSupabase).
+// Turn OFF the function's "Verify JWT with legacy secret" setting: new projects sign sessions
+// with new keys, which that legacy check rejects before this code runs.
 
 import { withSupabase } from "npm:@supabase/server@1";
 
@@ -70,7 +70,7 @@ async function handle(req: Request): Promise<Response> {
   return reply(504, { error: "Reading took too long. Try again." });
 }
 
-const guarded = withSupabase({ auth: "publishable" }, (req: Request) => handle(req));
+const guarded = withSupabase({ auth: "user" }, (req: Request) => handle(req));
 
 export default {
   // Browsers send a preflight OPTIONS request without the key; answer it before the key check.
@@ -78,7 +78,7 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
     const res = await guarded(req);
     if (res.status === 401 || res.status === 403) {
-      return reply(401, { error: "The app's Supabase key is missing or wrong. Check VITE_SUPABASE_PUBLISHABLE_KEY." });
+      return reply(401, { error: "Sign in to Allsquare to scan receipts." });
     }
     return res;
   },
